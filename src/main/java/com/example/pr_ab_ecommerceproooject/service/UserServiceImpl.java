@@ -7,11 +7,11 @@ import com.example.pr_ab_ecommerceproooject.model.User;
 import com.example.pr_ab_ecommerceproooject.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -20,7 +20,7 @@ import java.util.Optional;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
+//    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     @Override
@@ -32,7 +32,7 @@ public class UserServiceImpl implements UserService {
             throw new UserAlreadyExistsException("User is already registered");
         }
         User newUser = createUser(user);
-        newUser.setPassword(passwordEncoder.encode(user.getPassword()));
+        newUser.setPassword(user.getPassword());
         return userRepository.save(newUser);
     }
 
@@ -91,14 +91,22 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public User updateUser(User user) {
+    public User updateUser(User user, Long id) {
         log.info("Updating user with id: {}", user.getId());
         User existUser = userRepository.findById(user.getId())
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + user.getId()));
-        existUser.setEmail(user.getEmail());
-        existUser.setFirstname(user.getFirstname());
-        existUser.setLastname(user.getLastname());
-        existUser.setPhoneNumber(user.getPhoneNumber());
+        if (user.getEmail() != null) {
+            existUser.setEmail(user.getEmail());
+        }
+        if (user.getFirstname() != null) {
+            existUser.setFirstname(user.getFirstname());
+        }
+        if (user.getLastname() != null) {
+            existUser.setLastname(user.getLastname());
+        }
+        if (user.getPhoneNumber() != null) {
+            existUser.setPhoneNumber(user.getPhoneNumber());
+        }
         return userRepository.save(existUser);
     }
 
@@ -115,21 +123,20 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public boolean changePassword(Long id, String oldPassword, String newPassword) {
+    public void changePassword(Long id, String oldPassword, String newPassword) {
         log.info("Changing password for user with id: {}", id);
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
-        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+        if (!Objects.equals(oldPassword, user.getPassword())) {
             log.warn("Old password does not match for user with id: {}", id);
-            return false;
+            return;
         }
         if (!isValidNewPassword(newPassword)) {
             log.error("New password does not meet complexity requirements for user with id: {}", id);
             throw new IllegalArgumentException("New password does not meet complexity requirements.");
         }
-        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setPassword(newPassword);
         userRepository.save(user);
-        return true;
     }
 
     private boolean isValidNewPassword(String newPassword) {
