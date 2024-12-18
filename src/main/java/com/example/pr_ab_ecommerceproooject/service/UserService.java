@@ -9,13 +9,14 @@ public interface UserService {
 
     User registerUser(User user) throws Exception;
     Optional<User> getUserById(Long id);
-    User getUserByEmail(String email);
-    User getUserByUsername(String username);
+    Optional<User> getUserByEmail(String email);
+    Optional<User> getUserByUsername(String username);
 
     List<User> getAllUsers();
 
     User updateUser(User user, Long id);
     boolean deleteUser(Long id);
     void changePassword(Long id, String oldPassword, String newPassword);
+    String authenticateUser(String username, String password);
 
 }

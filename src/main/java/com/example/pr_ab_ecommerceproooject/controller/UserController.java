@@ -7,17 +7,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/users")
+@RequestMapping("/api/users")
 @RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
+    private final PasswordEncoder passwordEncoder;
 
     @GetMapping("/all")
     public ResponseEntity<List<User>> getAllUsers() {
@@ -39,30 +42,25 @@ public class UserController {
 
     @GetMapping("/email/{email}")
     public ResponseEntity<User> getUserByEmail(@PathVariable String email) {
-        if (userService.getUserByEmail(email) == null) {
+        Optional<User> user = userService.getUserByEmail(email);
+        if (user.isEmpty()) {
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
         } else {
-            return new ResponseEntity<>(userService.getUserByEmail(email), HttpStatus.OK);
+            return new ResponseEntity<>(user.get(), HttpStatus.OK);
         }
     }
 
-    @GetMapping("/username/{username}")
+  @GetMapping("/username/{username}")
     public ResponseEntity<User> getUserByUsername(@PathVariable String username) {
-        if (userService.getUserByUsername(username) == null) {
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        } else {
-            return new ResponseEntity<>(userService.getUserByUsername(username), HttpStatus.OK);
-        }
+    Optional<User> user = userService.getUserByUsername(username);
+    if (user.isEmpty()) {
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    } else {
+        return new ResponseEntity<>(user.get(), HttpStatus.OK);
     }
+}
 
-    @PostMapping("/register")
-    public ResponseEntity<User> registerUser(@RequestBody User user) {
-        try {
-            return new ResponseEntity<>(userService.registerUser(user), HttpStatus.CREATED);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
+
 
     @PutMapping("/update/{id}")
     public ResponseEntity<User> updateUser(@RequestBody User user, @PathVariable Long id) {

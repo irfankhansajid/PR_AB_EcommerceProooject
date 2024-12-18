@@ -4,15 +4,19 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Entity
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "users")
-public class User {
+public class User implements UserDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -39,10 +43,35 @@ public class User {
     private List<Order> orders;
 
     @Enumerated(EnumType.STRING)
-    private Role role;
+    @ElementCollection(fetch = FetchType.EAGER)
+    private List<Role> role;
 
     @Column(nullable = false)
     private boolean isActive;
 
 
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return role.stream().map(role -> (GrantedAuthority) role::name).collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
 }

@@ -1,17 +1,23 @@
-package com.example.pr_ab_ecommerceproooject.service;
+package com.example.pr_ab_ecommerceproooject.service.implementation;
 
-import com.example.pr_ab_ecommerceproooject.exception.UserAlreadyExistsException;
-import com.example.pr_ab_ecommerceproooject.exception.UserNotFoundException;
+import com.example.pr_ab_ecommerceproooject.exception.AlreadyExistsException;
+import com.example.pr_ab_ecommerceproooject.exception.NotFoundException;
+import com.example.pr_ab_ecommerceproooject.jwt.JwtUtils;
 import com.example.pr_ab_ecommerceproooject.model.Role;
 import com.example.pr_ab_ecommerceproooject.model.User;
 import com.example.pr_ab_ecommerceproooject.repository.UserRepository;
+import com.example.pr_ab_ecommerceproooject.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -20,19 +26,21 @@ import java.util.Optional;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-//    private final PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authenticationManager;
+    private final JwtUtils jwtUtils;
 
     @Transactional
     @Override
     public User registerUser(User user) {
         log.info("Registering user with username: {}", user.getUsername());
 
-        if (userRepository.findByUsername(user.getUsername()) != null || userRepository.findByEmail(user.getEmail()) != null) {
+        if (userRepository.findByUsername(user.getUsername()).isPresent() || userRepository.findByEmail(user.getEmail()).isPresent()) {
             log.warn("User already exists with username: {} or email: {}", user.getUsername(), user.getEmail());
-            throw new UserAlreadyExistsException("User is already registered");
+            throw new AlreadyExistsException("User is already registered");
         }
         User newUser = createUser(user);
-        newUser.setPassword(user.getPassword());
+        newUser.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(newUser);
     }
 
@@ -43,7 +51,7 @@ public class UserServiceImpl implements UserService {
         newUser.setFirstname(user.getFirstname());
         newUser.setLastname(user.getLastname());
         newUser.setPhoneNumber(user.getPhoneNumber());
-        newUser.setRole(Role.USER);
+        newUser.setRole(List.of(Role.USER));
         newUser.setActive(true);
         return newUser;
     }
@@ -59,27 +67,27 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public User getUserByEmail(String email) {
+    public Optional<User> getUserByEmail(String email) {
         log.info("Fetching user with email: {}", email);
         if (email == null || email.isEmpty()) {
             log.error("Email cannot be null or empty");
             throw new IllegalArgumentException("Email cannot be null or empty");
         }
         return Optional.ofNullable(userRepository.findByEmail(email))
-                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
+                .orElseThrow(() -> new NotFoundException("User not found with email: " + email));
     }
 
     @Override
-    public User getUserByUsername(String username) {
+    public Optional<User> getUserByUsername(String username) {
         log.info("Fetching user with username: {}", username);
         if (username == null || username.isEmpty()) {
             log.error("Username cannot be null or empty");
-            throw new UserNotFoundException("Username cannot be null or empty");
+            throw new NotFoundException("Username cannot be null or empty");
         }
-        User user = userRepository.findByUsername(username);
-        if (user == null) {
+        Optional<User> user = userRepository.findByUsername(username);
+        if (user.isEmpty()) {
             log.error("User not found with username: {}", username);
-            throw new UserNotFoundException("User not found with username: " + username);
+            throw new NotFoundException("User not found with username: " + username);
         }
         return user;
     }
@@ -94,7 +102,7 @@ public class UserServiceImpl implements UserService {
     public User updateUser(User user, Long id) {
         log.info("Updating user with id: {}", user.getId());
         User existUser = userRepository.findById(user.getId())
-                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + user.getId()));
+                .orElseThrow(() -> new NotFoundException("User not found with id: " + user.getId()));
         if (user.getEmail() != null) {
             existUser.setEmail(user.getEmail());
         }
@@ -126,16 +134,16 @@ public class UserServiceImpl implements UserService {
     public void changePassword(Long id, String oldPassword, String newPassword) {
         log.info("Changing password for user with id: {}", id);
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
-        if (!Objects.equals(oldPassword, user.getPassword())) {
+                .orElseThrow(() -> new NotFoundException("User not found with id: " + id));
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
             log.warn("Old password does not match for user with id: {}", id);
-            return;
+            throw new IllegalArgumentException("Old password is incorrect.");
         }
         if (!isValidNewPassword(newPassword)) {
             log.error("New password does not meet complexity requirements for user with id: {}", id);
             throw new IllegalArgumentException("New password does not meet complexity requirements.");
         }
-        user.setPassword(newPassword);
+        user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
     }
 
@@ -147,4 +155,14 @@ public class UserServiceImpl implements UserService {
         if (!newPassword.matches(".*[!@#$%^&*(),.?\":{}|<>].*")) return false;
         return true;
     }
+
+    @Override
+    public String authenticateUser(String username, String password) {
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(username, password)
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        return jwtUtils.generateToken(username);
+    }
+
 }
